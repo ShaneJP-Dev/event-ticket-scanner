@@ -1,16 +1,145 @@
 // app/components/TicketTable.tsx
 "use client";
 
+import { useState } from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Ticket, Users, CheckCircle, XCircle } from "lucide-react";
+import { MoreHorizontal, Ticket, Users, CheckCircle, XCircle, QrCode, Eye, Copy } from "lucide-react";
 import { useTickets, useDeleteTicket, useToggleTicketUsage } from "@/hooks/useTickets";
 import type { Ticket as TicketType } from "@/lib/types/tickets";
+import QRCode from "react-qr-code";
+import { toast } from "sonner";
 
 interface TicketsTableProps {
   onEditTicket?: (ticket: TicketType) => void;
+}
+
+function TicketQRDialog({ ticket }: { ticket: TicketType }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-2">
+          <QrCode className="w-4 h-4" />
+          QR Code
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ticket QR Code</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* QR Code */}
+          <div className="flex justify-center p-4 bg-white rounded-lg border">
+            <QRCode 
+              value={ticket.code} 
+              size={200}
+              level="M"
+              //includeMargin={true}
+            />
+          </div>
+          
+          {/* Ticket Details */}
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Ticket Code:</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold">{ticket.code}</span>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={() => copyToClipboard(ticket.code)}
+                  className="h-6 w-6 p-0"
+                >
+                  <Copy className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Name:</span>
+              <span className="font-medium">{ticket.name} {ticket.surname}</span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Event:</span>
+              <span className="font-medium">
+                {ticket.event?.name || "No Event"}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Status:</span>
+              <Badge 
+                variant={ticket.used ? "default" : "secondary"}
+                className={ticket.used ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
+              >
+                {ticket.used ? (
+                  <>
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Used
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Unused
+                  </>
+                )}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => copyToClipboard(ticket.code)}
+              variant="outline"
+              className="flex-1"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy Code
+            </Button>
+            <Button 
+              onClick={() => {
+                // Create a canvas to convert QR code to image
+                const svg = document.querySelector('svg');
+                if (svg) {
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const data = new XMLSerializer().serializeToString(svg);
+                  const img = new Image();
+                  img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx?.drawImage(img, 0, 0);
+                    const url = canvas.toDataURL();
+                    const a = document.createElement('a');
+                    a.download = `ticket-${ticket.code}.png`;
+                    a.href = url;
+                    a.click();
+                  };
+                  img.src = 'data:image/svg+xml;base64,' + btoa(data);
+                }
+              }}
+              variant="outline"
+              className="flex-1"
+            >
+              Download QR
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function TicketsTable({ onEditTicket }: TicketsTableProps) {
@@ -37,6 +166,11 @@ export default function TicketsTable({ onEditTicket }: TicketsTableProps) {
     } else {
       alert("Edit functionality not implemented yet");
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Ticket code copied to clipboard!");
   };
 
   if (isLoading) {
@@ -76,6 +210,7 @@ export default function TicketsTable({ onEditTicket }: TicketsTableProps) {
             <TableHead>Surname</TableHead>
             <TableHead>Event</TableHead>
             <TableHead className="text-center">Status</TableHead>
+            <TableHead className="text-center">QR Code</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -83,7 +218,17 @@ export default function TicketsTable({ onEditTicket }: TicketsTableProps) {
           {tickets.map((ticket: TicketType) => (
             <TableRow key={ticket.id}>
               <TableCell className="font-mono font-medium">
-                {ticket.code}
+                <div className="flex items-center gap-2">
+                  <span>{ticket.code}</span>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => copyToClipboard(ticket.code)}
+                    className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                </div>
               </TableCell>
               <TableCell>{ticket.name}</TableCell>
               <TableCell>{ticket.surname}</TableCell>
@@ -108,6 +253,9 @@ export default function TicketsTable({ onEditTicket }: TicketsTableProps) {
                   )}
                 </Badge>
               </TableCell>
+              <TableCell className="text-center">
+                <TicketQRDialog ticket={ticket} />
+              </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -125,6 +273,9 @@ export default function TicketsTable({ onEditTicket }: TicketsTableProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleToggleUsage(ticket)}>
                       Mark as {ticket.used ? 'Unused' : 'Used'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => copyToClipboard(ticket.code)}>
+                      Copy Ticket Code
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={() => handleDelete(ticket)}

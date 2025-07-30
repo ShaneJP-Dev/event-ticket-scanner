@@ -4,16 +4,14 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// GET /api/tickets/[id] - Fetch a single ticket
+// GET /api/tickets/[id] - Fetch single ticket
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-
     const ticket = await prisma.ticket.findUnique({
-      where: { id },
+      where: { id: params.id },
       include: {
         event: {
           select: {
@@ -43,19 +41,18 @@ export async function GET(
   }
 }
 
-// PUT /api/tickets/[id] - Update a ticket
+// PUT /api/tickets/[id] - Update ticket
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
     const body = await request.json();
     const { name, surname, eventId, used } = body;
 
     // Check if ticket exists
     const existingTicket = await prisma.ticket.findUnique({
-      where: { id }
+      where: { id: params.id }
     });
 
     if (!existingTicket) {
@@ -65,8 +62,27 @@ export async function PUT(
       );
     }
 
-    // If eventId is being changed, check if new event exists
-    if (eventId && eventId !== existingTicket.eventId) {
+    // Prepare update data
+    const updateData: any = {};
+    
+    if (name !== undefined) updateData.name = name;
+    if (surname !== undefined) updateData.surname = surname;
+    if (eventId !== undefined) updateData.eventId = eventId;
+    
+    if (used !== undefined) {
+      updateData.used = used;
+      // Set usedAt timestamp when marking as used
+      if (used && !existingTicket.used) {
+        updateData.usedAt = new Date();
+      }
+      // Clear usedAt when marking as unused
+      if (!used && existingTicket.used) {
+        updateData.usedAt = null;
+      }
+    }
+
+    // If eventId is provided, verify the event exists
+    if (eventId) {
       const event = await prisma.event.findUnique({
         where: { id: eventId }
       });
@@ -79,21 +95,8 @@ export async function PUT(
       }
     }
 
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (surname !== undefined) updateData.surname = surname;
-    if (eventId !== undefined) updateData.eventId = eventId;
-    if (used !== undefined) {
-      updateData.used = used;
-      if (used) {
-        updateData.usedAt = new Date();
-      } else {
-        updateData.usedAt = null;
-      }
-    }
-
-    const ticket = await prisma.ticket.update({
-      where: { id },
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: params.id },
       data: updateData,
       include: {
         event: {
@@ -107,7 +110,7 @@ export async function PUT(
       }
     });
 
-    return NextResponse.json(ticket);
+    return NextResponse.json(updatedTicket);
   } catch (error) {
     console.error("Error updating ticket:", error);
     return NextResponse.json(
@@ -117,17 +120,15 @@ export async function PUT(
   }
 }
 
-// DELETE /api/tickets/[id] - Delete a ticket
+// DELETE /api/tickets/[id] - Delete ticket
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-
     // Check if ticket exists
     const existingTicket = await prisma.ticket.findUnique({
-      where: { id }
+      where: { id: params.id }
     });
 
     if (!existingTicket) {
@@ -138,13 +139,13 @@ export async function DELETE(
     }
 
     await prisma.ticket.delete({
-      where: { id }
+      where: { id: params.id }
     });
 
-    return NextResponse.json(
-      { message: "Ticket deleted successfully" },
-      { status: 200 }
-    );
+    return NextResponse.json({ 
+      message: "Ticket deleted successfully",
+      deletedTicket: existingTicket 
+    });
   } catch (error) {
     console.error("Error deleting ticket:", error);
     return NextResponse.json(
