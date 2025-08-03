@@ -8,22 +8,30 @@ const prisma = new PrismaClient();
 export async function GET() {
   try {
     const events = await prisma.event.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
         _count: {
-          select: { tickets: true }
+          select: {
+            tickets: true
+          }
         }
       },
       orderBy: {
-        createdAt: 'desc'
+        startDate: 'asc'
       }
     });
 
-    // Format dates for frontend display
+    // Format the response to include ticket count and convert dates to ISO strings
     const formattedEvents = events.map(event => ({
-      ...event,
-      date: `${event.startDate.toLocaleDateString()} - ${event.endDate.toLocaleDateString()}`,
+      id: event.id,
+      name: event.name,
       startDate: event.startDate.toISOString(),
       endDate: event.endDate.toISOString(),
+      createdAt: event.createdAt.toISOString(),
       ticketCount: event._count.tickets
     }));
 
@@ -54,36 +62,44 @@ export async function POST(request: NextRequest) {
     // Validate dates
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return NextResponse.json(
+        { error: "Invalid date format" },
+        { status: 400 }
+      );
+    }
+
     if (start >= end) {
       return NextResponse.json(
-        { error: "End date must be after start date" },
+        { error: "Start date must be before end date" },
         { status: 400 }
       );
     }
 
     const event = await prisma.event.create({
       data: {
-        name,
+        name: name.trim(),
         startDate: start,
         endDate: end,
       },
       include: {
         _count: {
-          select: { tickets: true }
+          select: {
+            tickets: true
+          }
         }
       }
     });
 
-    const formattedEvent = {
-      ...event,
-      date: `${event.startDate.toLocaleDateString()} - ${event.endDate.toLocaleDateString()}`,
+    return NextResponse.json({
+      id: event.id,
+      name: event.name,
       startDate: event.startDate.toISOString(),
       endDate: event.endDate.toISOString(),
+      createdAt: event.createdAt.toISOString(),
       ticketCount: event._count.tickets
-    };
-
-    return NextResponse.json(formattedEvent, { status: 201 });
+    }, { status: 201 });
   } catch (error) {
     console.error("Error creating event:", error);
     return NextResponse.json(

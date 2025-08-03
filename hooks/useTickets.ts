@@ -310,3 +310,108 @@ export function useBulkTicketOperations() {
     },
   });
 }
+
+export function useCreateMultipleTickets() {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkCreateResponse, Error, { tickets: BulkTicketData[]; eventId?: string }>({
+    mutationFn: async ({ tickets, eventId }) => {
+      // Validate input
+      if (!tickets || tickets.length === 0) {
+        throw new Error('No tickets provided');
+      }
+
+      // Check for required fields
+      const invalidTickets = tickets.filter(ticket => !ticket.name || !ticket.surname);
+      if (invalidTickets.length > 0) {
+        throw new Error(`${invalidTickets.length} tickets are missing required fields (name, surname)`);
+      }
+
+      // Ensure all tickets have an eventId
+      const ticketsWithEvent = tickets.map(ticket => ({
+        ...ticket,
+        eventId: ticket.eventId || eventId
+      }));
+
+      // Check if any tickets are missing eventId
+      const missingEventId = ticketsWithEvent.filter(ticket => !ticket.eventId);
+      if (missingEventId.length > 0) {
+        throw new Error('Event ID is required for all tickets');
+      }
+
+      // Send request to bulk create endpoint
+      const response = await fetch('/api/tickets/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tickets: ticketsWithEvent,
+          eventId: eventId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || 
+          errorData.errors?.[0]?.error ||
+          `Failed to create tickets: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      return result;
+    },
+    onSuccess: (data) => {
+      // Invalidate and refetch tickets query to update the table
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      
+      // Show success notification
+      if (data.failed > 0) {
+        toast.warning(
+          `Created ${data.created} tickets successfully. ${data.failed} tickets failed to create.`,
+          {
+            description: 'Check the console for details about failed tickets.',
+            duration: 5000,
+          }
+        );
+        
+        // Log failed tickets for debugging
+        if (data.errors) {
+          console.warn('Failed to create some tickets:', data.errors);
+        }
+      } else {
+        toast.success(
+          `Successfully created ${data.created} tickets!`,
+          {
+            description: 'All tickets have been added to your system.',
+            duration: 4000,
+          }
+        );
+      }
+    },
+    onError: (error) => {
+      console.error('Error creating multiple tickets:', error);
+      
+      toast.error(
+        'Failed to create tickets',
+        {
+          description: error.message || 'An unexpected error occurred. Please try again.',
+          duration: 5000,
+        }
+      );
+    },
+    // Optional: Add retry logic
+    retry: (failureCount, error) => {
+      // Don't retry on validation errors (4xx status codes)
+      if (error.message.includes('400') || error.message.includes('422')) {
+        return false;
+      }
+      // Retry up to 2 times for server errors
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+  });
+}
