@@ -5,9 +5,9 @@ import type { Event, CreateEventData, UpdateEventData } from "@/lib/types/event"
 
 // Fetch all events
 export function useEvents() {
-  return useQuery<Event[]>({
+  return useQuery<Event[], Error>({
     queryKey: ["events"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Event[]> => {
       const res = await fetch("/api/events");
       if (!res.ok) {
         throw new Error("Failed to fetch events");
@@ -19,9 +19,9 @@ export function useEvents() {
 
 // Fetch single event
 export function useEvent(id: string) {
-  return useQuery<Event>({
+  return useQuery<Event, Error>({
     queryKey: ["events", id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Event> => {
       const res = await fetch(`/api/events/${id}`);
       if (!res.ok) {
         throw new Error("Failed to fetch event");
@@ -36,8 +36,8 @@ export function useEvent(id: string) {
 export function useCreateEvent() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (data: CreateEventData) => {
+  return useMutation<Event, Error, CreateEventData>({
+    mutationFn: async (data: CreateEventData): Promise<Event> => {
       const res = await fetch("/api/events", {
         method: "POST",
         headers: {
@@ -57,7 +57,7 @@ export function useCreateEvent() {
       toast.success("✅ Event created successfully");
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error(`❌ ${error.message}`);
     },
   });
@@ -67,8 +67,8 @@ export function useCreateEvent() {
 export function useUpdateEvent() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: UpdateEventData }) => {
+  return useMutation<Event, Error, { id: string; data: UpdateEventData }>({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateEventData }): Promise<Event> => {
       const res = await fetch(`/api/events/${id}`, {
         method: "PUT",
         headers: {
@@ -84,12 +84,12 @@ export function useUpdateEvent() {
 
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: Event) => {
       toast.success("✅ Event updated successfully");
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["events", data.id] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error(`❌ ${error.message}`);
     },
   });
@@ -99,8 +99,8 @@ export function useUpdateEvent() {
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (id: string) => {
+  return useMutation<void, Error, string>({
+    mutationFn: async (id: string): Promise<void> => {
       const res = await fetch(`/api/events/${id}`, {
         method: "DELETE",
       });
@@ -116,7 +116,7 @@ export function useDeleteEvent() {
       toast.success("✅ Event deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error(`❌ ${error.message}`);
     },
   });

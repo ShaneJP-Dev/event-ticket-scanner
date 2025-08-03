@@ -242,7 +242,7 @@ const handleCloseModal = () => {
           onMarkAsUnused={handleMarkAsUnused}
           isMarkingAsUsed={toggleUsageMutation.isPending}
           isScanned={!!scannedCode}
-          autoProcessed={scannedCode && ticket?.used}
+          autoProcessed={!!scannedCode && !!ticket?.used}
         />
       )}
     </div>

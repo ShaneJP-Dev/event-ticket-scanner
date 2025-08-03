@@ -10,11 +10,22 @@ import Papa from 'papaparse';
 // Note: In your actual implementation, import this from the correct path
 // import { useEvents } from '@/hooks/useEvents';
 
+// Define the Event type to match your actual Event type
+interface Event {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  description?: string;
+  location?: string;
+  // Add other properties as needed
+}
+
 // Mock hook for demo - replace with actual import
 const useEvents = () => {
-  const [events, setEvents] = React.useState([]);
+  const [events, setEvents] = React.useState<Event[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
     const fetchEvents = async () => {
@@ -22,10 +33,11 @@ const useEvents = () => {
       try {
         const response = await fetch('/api/events');
         if (!response.ok) throw new Error('Failed to fetch events');
-        const data = await response.json();
+        const data: Event[] = await response.json();
         setEvents(data);
+        setError(null);
       } catch (err) {
-        setError(err);
+        setError(err instanceof Error ? err : new Error('Unknown error'));
       } finally {
         setIsLoading(false);
       }

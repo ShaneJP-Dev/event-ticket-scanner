@@ -1,7 +1,7 @@
 // app/components/TicketsTable.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -176,28 +176,26 @@ export default function TicketsTable({ onEditTicket, onAddTicket }: TicketsTable
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "used" | "unused">("all");
-  const [recentlyUpdated, setRecentlyUpdated] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
   
   const itemsPerPage = 10;
 
-  // Track recently updated tickets for visual feedback
-  useEffect(() => {
-    const updatedTickets = new Set<string>();
-    tickets.forEach(ticket => {
-      if (ticket.usedAt) {
-        const usedTime = new Date(ticket.usedAt).getTime();
-        const now = new Date().getTime();
-        const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes
-        
-        if (usedTime > fiveMinutesAgo) {
-          updatedTickets.add(ticket.id);
-        }
+  const recentlyUpdated = useMemo(() => {
+  const updatedTickets = new Set<string>();
+  tickets.forEach(ticket => {
+    if (ticket.usedAt) {
+      const usedTime = new Date(ticket.usedAt).getTime();
+      const now = new Date().getTime();
+      const fiveMinutesAgo = now - (5 * 60 * 1000); // 5 minutes
+      
+      if (usedTime > fiveMinutesAgo) {
+        updatedTickets.add(ticket.id);
       }
-    });
-    setRecentlyUpdated(updatedTickets);
-  }, [tickets]);
+    }
+  });
+  return updatedTickets;
+}, [tickets]);
 
   // Filter tickets based on search and status
   const filteredTickets = tickets.filter(ticket => {
@@ -247,30 +245,31 @@ export default function TicketsTable({ onEditTicket, onAddTicket }: TicketsTable
   };
 
   const handleCSVUpload = (csvTickets: any[]) => {
-    // Transform CSV tickets to match your ticket format
-    const ticketsToCreate = csvTickets.map(csvTicket => ({
-      name: csvTicket.name,
-      surname: csvTicket.surname,
-      email: csvTicket.email,
-      code: csvTicket.code,
-      used: false,
-      // Add any other required fields for your ticket creation
-    }));
+  // Transform CSV tickets to match your ticket format
+  const ticketsToCreate = csvTickets.map(csvTicket => ({
+    name: csvTicket.name,
+    surname: csvTicket.surname,
+    code: csvTicket.code,
+    used: false,
+    // Add any other required fields for your ticket creation
+  }));
 
-    // Call your API to create multiple tickets
-    createMultipleTicketsMutation.mutate(ticketsToCreate, {
-      onSuccess: () => {
-        toast.success(`Successfully created ${ticketsToCreate.length} tickets!`);
-        refetch(); // Refresh the tickets list
-        setIsCSVModalOpen(false); // Close the modal
-      },
-      onError: (error) => {
-        toast.error("Failed to create tickets. Please try again.");
-        console.error("Error creating tickets:", error);
-      }
-    });
-  };
-
+  // Call your API to create multiple tickets - wrap in object with tickets property
+  createMultipleTicketsMutation.mutate({
+    tickets: ticketsToCreate,
+    // eventId: "optional-event-id" // Add if you need to associate with an event
+  }, {
+    onSuccess: () => {
+      toast.success(`Successfully created ${ticketsToCreate.length} tickets!`);
+      refetch(); // Refresh the tickets list
+      setIsCSVModalOpen(false); // Close the modal
+    },
+    onError: (error) => {
+      toast.error("Failed to create tickets. Please try again.");
+      console.error("Error creating tickets:", error);
+    }
+  });
+};
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Ticket code copied to clipboard!");
@@ -497,7 +496,7 @@ export default function TicketsTable({ onEditTicket, onAddTicket }: TicketsTable
                         <div className="flex items-center gap-2">
                           <span>{ticket.code}</span>
                           {isRecentlyUpdated && (
-                            <Zap className="w-3 h-3 text-green-600" title="Recently updated" />
+                            <Zap className="w-3 h-3 text-green-600" aria-label="Recently updated" />
                           )}
                           <Button 
                             size="sm" 
