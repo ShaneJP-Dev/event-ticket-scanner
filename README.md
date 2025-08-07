@@ -1,5 +1,4 @@
 # Event Ticket Scanner
-[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/ShaneJP-Dev/event-ticket-scanner)
 
 Event Ticket Scanner is a comprehensive, full-stack application built with Next.js and Prisma for managing and validating event tickets. It provides a robust dashboard for event and ticket management, including bulk CSV imports, and features a real-time QR code scanning interface for efficient check-ins.
 
